@@ -43,17 +43,26 @@ class OmniAuth::Strategies::Oauth2Basic < ::OmniAuth::Strategies::OAuth2
   def request_phase
     # Generate a random code_verifier
     code_verifier = SecureRandom.urlsafe_base64(64)
+    
     # Compute the code_challenge using SHA256 and Base64 URL-safe encoding (remove trailing '=')
     code_challenge = Base64.urlsafe_encode64(OpenSSL::Digest::SHA256.digest(code_verifier)).delete("=")
-    
+
     # Store the code_verifier in the session (for later token exchange)
     session["oauth2_code_verifier"] = code_verifier
-    
+
     # Ensure authorize_params is a hash and add PKCE parameters
     options.authorize_params ||= {}
     options.authorize_params[:code_challenge] = code_challenge
     options.authorize_params[:code_challenge_method] = "S256"
-    
+
     super
+  end
+
+  # --- Fix for Missing Code Verifier in Token Request ---
+  # This ensures that the code_verifier is sent when exchanging the authorization code for a token.
+  def token_params
+    super.tap do |params|
+      params[:code_verifier] = session["oauth2_code_verifier"]
+    end
   end
 end
